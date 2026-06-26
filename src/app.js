@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth');
 const doctorRoutes = require('./routes/doctors');
 const scheduleRoutes = require('./routes/schedules');
 const appointmentRoutes = require('./routes/appointments');
+const feedbackRoutes = require('./routes/feedback');
 
 const dataDir = path.join(__dirname, '..', 'data');
 if (!fs.existsSync(dataDir)) {
@@ -57,7 +58,13 @@ app.get('/', (req, res) => {
         available: 'GET /api/appointments/available?department_id=&date=',
         my_appointments: 'GET /api/appointments/my (patient)',
         create: 'POST /api/appointments (patient)',
+        complete: 'POST /api/appointments/:id/complete (admin)',
         cancel: 'POST /api/appointments/:id/cancel (patient)'
+      },
+      feedbacks: {
+        submit: 'POST /api/feedbacks (patient)',
+        doctor_feedbacks: 'GET /api/feedbacks/doctor/:doctor_id?page=&page_size=',
+        my_feedbacks: 'GET /api/feedbacks/my (patient)'
       }
     }
   });
@@ -67,6 +74,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api', doctorRoutes);
 app.use('/api', scheduleRoutes);
 app.use('/api', appointmentRoutes);
+app.use('/api', feedbackRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: '请求的资源不存在' });

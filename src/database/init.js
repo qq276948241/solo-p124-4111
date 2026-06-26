@@ -35,6 +35,8 @@ db.serialize(() => {
     department_id INTEGER NOT NULL,
     title TEXT,
     description TEXT,
+    avg_rating REAL DEFAULT 0,
+    rating_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (department_id) REFERENCES departments(id)
   )`);
@@ -54,10 +56,23 @@ db.serialize(() => {
     patient_id INTEGER NOT NULL,
     doctor_id INTEGER NOT NULL,
     appointment_date DATE NOT NULL,
-    status TEXT NOT NULL DEFAULT 'booked' CHECK(status IN ('booked', 'cancelled')),
+    status TEXT NOT NULL DEFAULT 'booked' CHECK(status IN ('booked', 'cancelled', 'completed')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (patient_id) REFERENCES users(id),
     FOREIGN KEY (doctor_id) REFERENCES doctors(id)
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS feedbacks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id INTEGER NOT NULL,
+    doctor_id INTEGER NOT NULL,
+    appointment_id INTEGER NOT NULL UNIQUE,
+    rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+    comment TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_id) REFERENCES users(id),
+    FOREIGN KEY (doctor_id) REFERENCES doctors(id),
+    FOREIGN KEY (appointment_id) REFERENCES appointments(id)
   )`);
 
   const adminPassword = bcrypt.hashSync('admin123', 10);

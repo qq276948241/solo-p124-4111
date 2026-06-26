@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../database/db');
-const { authMiddleware, patientMiddleware } = require('../middleware/auth');
+const { authMiddleware, patientMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -230,6 +230,51 @@ router.post('/appointments', authMiddleware, patientMiddleware, (req, res) => {
       );
     });
   });
+});
+
+router.post('/appointments/:id/complete', authMiddleware, adminMiddleware, (req, res) => {
+  const { id } = req.params;
+
+  db.get(
+    'SELECT * FROM appointments WHERE id = ?',
+    [id],
+    (err, appointment) => {
+      if (err) {
+        return res.status(500).json({ message: '服务器错误' });
+      }
+      if (!appointment) {
+        return res.status(404).json({ message: '预约不存在' });
+      }
+      if (appointment.status === 'cancelled') {
+        return res.status(400).json({ message: '已取消的预约不能标记为已完成' });
+      }
+      if (appointment.status === 'completed') {
+        return res.status(400).json({ message: '该预约已完成，无需重复操作' });
+      }
+
+      const targetDate = new Date(appointment.appointment_date + 'T00:00:00');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (targetDate > today) {
+        return res.status(400).json({ message: '不能标记未来日期的预约为已完成' });
+      }
+
+      db.run(
+        "UPDATE appointments SET status = 'completed' WHERE id = ?",
+        [id],
+        function (err) {
+          if (err) {
+            return res.status(500).json({ message: '服务器错误' });
+          }
+          res.json({
+            id: parseInt(id),
+            status: 'completed',
+            message: '预约已标记为完成，患者可进行评价'
+          });
+        }
+      );
+    }
+  );
 });
 
 router.post('/appointments/:id/cancel', authMiddleware, patientMiddleware, (req, res) => {

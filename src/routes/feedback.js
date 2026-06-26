@@ -23,7 +23,7 @@ router.post('/feedbacks', authMiddleware, patientMiddleware, asyncHandler(async 
   const patientId = req.user.id;
   const { appointment_id, rating, comment } = req.body;
 
-  if (!appointment_id || !rating) {
+  if (appointment_id === undefined || appointment_id === null || rating === undefined || rating === null) {
     throw new AppError('预约ID和评分不能为空', 400);
   }
 

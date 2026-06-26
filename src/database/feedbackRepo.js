@@ -8,6 +8,13 @@ class AppError extends Error {
   }
 }
 
+async function getAppointmentById(appointmentId) {
+  return db.getAsync(
+    'SELECT * FROM appointments WHERE id = ?',
+    [appointmentId]
+  );
+}
+
 async function getAppointmentForPatient(appointmentId, patientId) {
   return db.getAsync(
     'SELECT * FROM appointments WHERE id = ? AND patient_id = ?',
@@ -31,10 +38,14 @@ async function insertFeedback(patientId, doctorId, appointmentId, rating, commen
 }
 
 async function getDoctorRatingStats(doctorId) {
-  return db.getAsync(
+  const result = await db.getAsync(
     'SELECT AVG(rating) as avg_rating, COUNT(*) as rating_count FROM feedbacks WHERE doctor_id = ?',
     [doctorId]
   );
+  return {
+    avg_rating: result.avg_rating || 0,
+    rating_count: result.rating_count || 0
+  };
 }
 
 async function updateDoctorRating(doctorId, avgRating, ratingCount) {
@@ -45,9 +56,12 @@ async function updateDoctorRating(doctorId, avgRating, ratingCount) {
 }
 
 async function createFeedback(patientId, appointmentId, rating, comment) {
-  const appointment = await getAppointmentForPatient(appointmentId, patientId);
+  const appointment = await getAppointmentById(appointmentId);
   if (!appointment) {
-    throw new AppError('预约不存在或不属于您', 400);
+    throw new AppError('预约不存在', 400);
+  }
+  if (appointment.patient_id !== patientId) {
+    throw new AppError('无权评价此预约', 403);
   }
   if (appointment.status !== 'completed') {
     throw new AppError('预约尚未完成，暂不能评价', 400);
@@ -69,8 +83,9 @@ async function createFeedback(patientId, appointmentId, rating, comment) {
     );
 
     const stats = await getDoctorRatingStats(appointment.doctor_id);
-    const newAvg = Math.round(stats.avg_rating * 10) / 10;
-    const newCount = stats.rating_count;
+    const rawAvg = stats.avg_rating || 0;
+    const newAvg = rawAvg === 0 ? 0 : Math.round(rawAvg * 10) / 10;
+    const newCount = stats.rating_count || 0;
     await updateDoctorRating(appointment.doctor_id, newAvg, newCount);
 
     await db.commit();
@@ -87,6 +102,9 @@ async function createFeedback(patientId, appointmentId, rating, comment) {
     };
   } catch (err) {
     await db.rollback();
+    if (err.message && err.message.includes('UNIQUE') && err.message.includes('appointment_id')) {
+      throw new AppError('该预约已评价，不能重复提交', 400);
+    }
     throw err;
   }
 }
@@ -122,10 +140,14 @@ async function listDoctorFeedbacks(doctorId, pageSize, offset) {
 }
 
 async function getDoctorRatingSummary(doctorId) {
-  return db.getAsync(
+  const result = await db.getAsync(
     'SELECT avg_rating, rating_count FROM doctors WHERE id = ?',
     [doctorId]
   );
+  return {
+    avg_rating: result ? (result.avg_rating || 0) : 0,
+    rating_count: result ? (result.rating_count || 0) : 0
+  };
 }
 
 async function getDoctorFeedbacks(doctorId, page, pageSize) {
@@ -142,8 +164,8 @@ async function getDoctorFeedbacks(doctorId, page, pageSize) {
 
   return {
     doctor_id: parseInt(doctorId),
-    avg_rating: stats ? stats.avg_rating : 0,
-    rating_count: stats ? stats.rating_count : 0,
+    avg_rating: stats.avg_rating,
+    rating_count: stats.rating_count,
     pagination: {
       page,
       page_size: pageSize,
